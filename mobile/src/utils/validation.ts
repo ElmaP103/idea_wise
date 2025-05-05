@@ -8,8 +8,8 @@ export function validateFiles(files: DocumentPickerAsset[]) {
     if (!file.mimeType?.startsWith('image') && !file.mimeType?.startsWith('video')) {
       return { valid: false, error: 'Only images and videos allowed.' };
     }
-    if (file.size && file.size > 50 * 1024 * 1024) {
-      return { valid: false, error: 'File too large (max 50MB).' };
+    if (file.size && file.size > 2 * 1024 * 1024 * 1024) {
+      return { valid: false, error: 'File too large (max 2GB).' };
     }
   }
   return { valid: true, error: null };

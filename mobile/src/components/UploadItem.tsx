@@ -65,6 +65,12 @@ const UploadItem = forwardRef(function UploadItem(
           }
           await new Promise(res => setTimeout(res, 500 * Math.pow(2, retries)));
         }
+        if (controller.current.canceled) {
+          setStatus('canceled');
+          setError('Upload canceled');
+          onStateChange({ progress: 0, status: 'canceled', error: 'Upload canceled' });
+          return;
+        }
       }
       uploaded += CHUNK_SIZE;
       setCurrentChunk(i + 1);

@@ -36,8 +36,8 @@ export default function FilePicker({ onFilesSelected }: { onFilesSelected: (file
           setError('Only images and videos are allowed.');
           return;
         }
-        if (asset.fileSize && asset.fileSize > 50 * 1024 * 1024) {
-          setError('File too large (max 50MB).');
+        if (asset.fileSize && asset.fileSize > 2 * 1024 * 1024 * 1024) {
+          setError('File too large (max 2GB).');
           return;
         }
       }
@@ -81,11 +81,11 @@ export default function FilePicker({ onFilesSelected }: { onFilesSelected: (file
   const handleReturn = () => setVideoPreview(null);
 
   return (
-    <View style={{ width: 340, marginBottom: 16 }}>
+    <View style={{ width: 340}}>
       <TouchableOpacity style={styles.button} onPress={pickMedia}>
         <Text style={styles.buttonText}>CHOOSE IMAGES OR VIDEOS</Text>
       </TouchableOpacity>
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center'}}>
         <TouchableOpacity style={[styles.button, styles.fullWidthButton]} onPress={takeMedia}>
           <Text style={styles.buttonText}>
             {cameraVideo ? 'RECORD VIDEO' : 'TAKE PHOTO'}
