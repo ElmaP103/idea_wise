@@ -47,6 +47,92 @@ const FINAL_DIR = path.join(UPLOAD_DIR, 'final');
 // In-memory storage instead of Redis
 const uploadStore: Record<string, any> = {};
 
+// Track upload progress
+const trackUploadProgress = async (uploadId: string) => {
+  try {
+    const uploadKey = `upload:${uploadId}`;
+    const uploadInfo = uploadStore[uploadKey];
+    
+    if (!uploadInfo) {
+      logger.warn('Upload not found for tracking', { uploadId });
+      return;
+    }
+
+    const { fileName, totalChunks, uploadedChunks } = uploadInfo;
+    
+    logger.info('Upload progress check', {
+      uploadId,
+      fileName,
+      uploadedChunks,
+      totalChunks
+    });
+    
+    // Check if upload is complete
+    if (uploadedChunks === totalChunks) {
+      const endTime = Date.now();
+      const durationSeconds = (endTime - uploadInfo.startTime) / 1000;
+      const uploadSpeed = durationSeconds > 0 ? (uploadInfo.fileSize / durationSeconds) / (1024 * 1024) : 0;
+      
+      // Update upload store with completed status
+      uploadStore[uploadKey] = {
+        ...uploadInfo,
+        status: 'completed',
+        endTime,
+        uploadSpeed
+      };
+      
+      logger.info('Upload marked as completed', {
+        uploadId,
+        fileName,
+        speed: uploadSpeed,
+        duration: durationSeconds
+      });
+    }
+  } catch (error) {
+    logger.error('Failed to track upload progress', { error });
+  }
+};
+
+// Start tracking job
+setInterval(async () => {
+  const uploads = Object.values(uploadStore);
+  for (const upload of uploads) {
+    if (upload.status === 'in_progress') {
+      await trackUploadProgress(upload.uploadId);
+    }
+  }
+}, 5000); // Check every 5 seconds
+
+// Initialize upload store from existing files in FINAL_DIR
+const initializeUploadStore = async () => {
+  try {
+    const files = await fs.promises.readdir(FINAL_DIR);
+    for (const file of files) {
+      const filePath = path.join(FINAL_DIR, file);
+      const stats = await fs.promises.stat(filePath);
+      const uploadId = file.split('.')[0]; // Assuming filename format is uploadId.extension
+      
+      uploadStore[`upload:${uploadId}`] = {
+        fileName: file,
+        fileSize: stats.size,
+        status: 'completed',
+        startTime: stats.ctimeMs,
+        endTime: stats.mtimeMs,
+        uploadSpeed: stats.size / ((stats.mtimeMs - stats.ctimeMs) / 1000) / (1024 * 1024) // MB/s
+      };
+    }
+    logger.info('Upload store initialized', { 
+      totalFiles: files.length,
+      uploadStore: Object.keys(uploadStore).length
+    });
+  } catch (error) {
+    logger.error('Failed to initialize upload store:', error);
+  }
+};
+
+// Initialize upload store on server start
+initializeUploadStore();
+
 // Middleware
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
@@ -128,119 +214,57 @@ app.post('/api/upload/chunk/:uploadId',
   maliciousFileDetector,
   async (req, res) => {
     try {
-      const { uploadId } = req.params;
-      const { chunkIndex, totalChunks, fileType } = req.body;
-      
-      logger.info('Chunk upload request received:', {
-        uploadId,
-        chunkIndex,
-        totalChunks,
-        fileType,
-        headers: req.headers,
-        body: req.body
-      });
-
       if (!req.file) {
         logger.error('No file received in chunk upload');
         return res.status(400).json({ error: 'No file received' });
       }
 
-      logger.info('File details:', {
-        fieldname: req.file.fieldname,
-        originalname: req.file.originalname,
-        mimetype: req.file.mimetype,
-        size: req.file.size,
-        bufferLength: req.file.buffer?.length
-      });
-
-      if (!uploadStore[`upload:${uploadId}`]) {
-        logger.error('Upload session not found', { uploadId });
-        return res.status(404).json({ error: 'Upload session not found' });
-      }
-
-      // Set the file type if not already set
-      if (!req.file.mimetype && fileType) {
-        req.file.mimetype = fileType;
-      }
-
+      const { uploadId } = req.params;
+      const { chunkIndex, totalChunks, fileType } = req.body;
+      const file = req.file;
+      
       // Save the chunk
       const chunkPath = path.join(CHUNKS_DIR, `${uploadId}-${chunkIndex}`);
-      logger.info('Preparing to save chunk:', { chunkPath });
+      await fs.promises.writeFile(chunkPath, file.buffer);
       
-      try {
-        // Ensure the chunks directory exists
-        await fs.promises.mkdir(CHUNKS_DIR, { recursive: true });
-        
-        // Validate buffer
-        if (!req.file.buffer || !Buffer.isBuffer(req.file.buffer)) {
-          logger.error('Invalid file buffer:', {
-            buffer: req.file.buffer,
-            isBuffer: Buffer.isBuffer(req.file.buffer)
-          });
-          return res.status(400).json({ error: 'Invalid file buffer' });
-        }
-
-        // Check available disk space
-        const stats = await fs.promises.statfs(CHUNKS_DIR);
-        const availableSpace = stats.bfree * stats.bsize;
-        if (availableSpace < req.file.buffer.length) {
-          logger.error('Insufficient disk space:', {
-            availableSpace,
-            requiredSpace: req.file.buffer.length
-          });
-          return res.status(507).json({ error: 'Insufficient disk space' });
-        }
-
-        // Write the chunk file
-        await fs.promises.writeFile(chunkPath, req.file.buffer);
-        logger.info('Chunk saved successfully', { 
-          chunkPath,
-          size: req.file.buffer.length
-        });
-
-        // Verify the file was written
-        const fileStats = await fs.promises.stat(chunkPath);
-        logger.info('Chunk file verified:', {
-          size: fileStats.size,
-          path: chunkPath
-        });
-      } catch (writeError: unknown) {
-        logger.error('Failed to write chunk file:', {
-          error: writeError,
-          chunkPath,
-          bufferSize: req.file.buffer?.length,
-          errorMessage: writeError instanceof Error ? writeError.message : 'Unknown error',
-          errorStack: writeError instanceof Error ? writeError.stack : undefined
-        });
-        return res.status(500).json({ 
-          error: 'Failed to save chunk file',
-          details: writeError instanceof Error ? writeError.message : 'Unknown error'
-        });
-      }
-
       // Update progress
-      uploadStore[`upload:${uploadId}`].uploadedChunks += 1;
+      const uploadKey = `upload:${uploadId}`;
+      if (!uploadStore[uploadKey]) {
+        uploadStore[uploadKey] = {
+          uploadId,
+          fileName: file.originalname,
+          fileSize: file.size,
+          totalChunks: parseInt(totalChunks),
+          uploadedChunks: 0,
+          status: 'in_progress',
+          startTime: Date.now(),
+          endTime: null,
+          uploadSpeed: 0
+        };
+      }
       
-      logger.info('Chunk uploaded successfully', { 
-        uploadId, 
-        chunkIndex, 
-        totalChunks,
-        uploadedChunks: uploadStore[`upload:${uploadId}`].uploadedChunks
-      });
+      // Update the store entry
+      const storeEntry = uploadStore[uploadKey];
+      if (storeEntry) {
+        storeEntry.uploadedChunks += 1;
+        
+        logger.info('Chunk uploaded', {
+          uploadId,
+          chunkIndex,
+          uploadedChunks: storeEntry.uploadedChunks,
+          totalChunks: storeEntry.totalChunks
+        });
+        
+        // Check if upload is complete
+        if (storeEntry.uploadedChunks === storeEntry.totalChunks) {
+          await trackUploadProgress(uploadId);
+        }
+      }
       
-      await redis.sadd('active_uploads', uploadId);
       res.json({ success: true });
     } catch (error) {
-      logger.error('Chunk upload failed:', {
-        error: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : undefined,
-        uploadId: req.params.uploadId,
-        chunkIndex: req.body.chunkIndex
-      });
-      res.status(500).json({ 
-        error: 'Internal server error during chunk upload',
-        details: error instanceof Error ? error.message : 'Unknown error'
-      });
+      logger.error('Chunk upload failed:', error);
+      res.status(500).json({ error: 'Internal server error during chunk upload' });
     }
   }
 );
@@ -248,7 +272,8 @@ app.post('/api/upload/chunk/:uploadId',
 app.post('/api/upload/complete/:uploadId', async (req, res) => {
   try {
     const { uploadId } = req.params;
-    const uploadInfo = uploadStore[`upload:${uploadId}`];
+    const uploadKey = `upload:${uploadId}`;
+    const uploadInfo = uploadStore[uploadKey];
     
     if (!uploadInfo) {
       logger.warn('Upload not found', { uploadId });
@@ -282,15 +307,35 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
     }
     
     // Set endTime and calculate speed
-    uploadInfo.endTime = Date.now();
-    const durationSeconds = (uploadInfo.endTime - uploadInfo.startTime) / 1000;
-    uploadInfo.uploadSpeed = durationSeconds > 0 ? (uploadInfo.fileSize / durationSeconds) / (1024 * 1024) : 0;
-    console.log(uploadInfo.uploadSpeed, 'upload speed----------');
-    // Update store
-    uploadInfo.status = 'completed';
+    const endTime = Date.now();
+    const durationSeconds = (endTime - uploadInfo.startTime) / 1000;
+    const uploadSpeed = durationSeconds > 0 ? (uploadInfo.fileSize / durationSeconds) / (1024 * 1024) : 0; // MB/s
     
-    logger.info('Upload completed', { uploadId, fileName, speed: uploadInfo.uploadSpeed });
-    res.json({ success: true });
+    // Update the upload store with completed status
+    uploadStore[uploadKey] = {
+      ...uploadInfo,
+      status: 'completed',
+      endTime,
+      uploadSpeed,
+      uploadedChunks: parseInt(totalChunks)
+    };
+    
+    // Verify the status was updated
+    logger.info('Upload completed - status check', { 
+      uploadId, 
+      fileName, 
+      speed: uploadSpeed,
+      fileSize: uploadInfo.fileSize,
+      duration: durationSeconds,
+      status: uploadStore[uploadKey].status,
+      uploadStore: uploadStore[uploadKey]
+    });
+    
+    res.json({ 
+      success: true,
+      uploadSpeed,
+      status: 'completed'
+    });
   } catch (error) {
     logger.error('Failed to complete upload', { error });
     res.status(500).json({ error: 'Failed to complete upload' });
@@ -374,20 +419,48 @@ setInterval(cleanupIncompleteUploads, 30 * 60 * 1000);
 app.get('/api/monitoring/stats', async (req, res) => {
   try {
     const uploads = Object.values(uploadStore);
-    const completedUploads = uploads.filter(u => u.status === 'completed');
-    uploads.filter(u => u.uploadSpeed, 'speed--------')
-    const averageSpeed =
-      completedUploads.length > 0
-        ? completedUploads.reduce((sum, u) => sum + (typeof u.uploadSpeed === 'number' ? u.uploadSpeed : 0), 0) / completedUploads.length
-        : 0;
+    
+    // Debug log to see what's in the upload store
+    logger.info('Upload store contents:', {
+      uploads: uploads.map(u => ({
+        status: u.status,
+        uploadSpeed: u.uploadSpeed,
+        fileName: u.fileName,
+        endTime: u.endTime,
+        uploadedChunks: u.uploadedChunks,
+        totalChunks: u.totalChunks
+      }))
+    });
+    
+    const completedUploads = uploads.filter(u => 
+      u.status === 'completed' && 
+      u.uploadSpeed !== undefined && 
+      u.uploadSpeed !== null &&
+      u.endTime !== null &&
+      u.uploadedChunks === u.totalChunks
+    );
+    
+    logger.info('Stats calculation', {
+      totalUploads: uploads.length,
+      completedUploads: completedUploads.length,
+      uploadSpeeds: completedUploads.map(u => u.uploadSpeed),
+      timestamp: new Date().toISOString()
+    });
+    
+    const averageSpeed = completedUploads.length > 0
+      ? completedUploads.reduce((sum, u) => sum + (u.uploadSpeed || 0), 0) / completedUploads.length
+      : 0;
 
     const stats = {
       totalUploads: uploads.length,
       activeUploads: uploads.filter(u => u.status === 'in_progress').length,
       failedUploads: uploads.filter(u => u.status === 'error').length,
       totalSize: uploads.reduce((sum, u) => sum + parseInt(u.fileSize), 0),
-      averageSpeed
+      averageSpeed,
+      completedUploadsCount: completedUploads.length,
+      timestamp: new Date().toISOString()
     };
+    
     res.json(stats);
   } catch (error) {
     logger.error('Failed to get stats:', error);

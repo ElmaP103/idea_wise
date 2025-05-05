@@ -75,6 +75,7 @@ const MonitoringDashboard: React.FC = () => {
   useEffect(() => {
     if (statsData) {
       setStats(statsData);
+
     }
   }, [statsData]);
 
@@ -110,7 +111,7 @@ const MonitoringDashboard: React.FC = () => {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '24px' }}>
         <div>
-          <Card style={{ minHeight: 120, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <Card style={{ minHeight: 160, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
             <CardContent>
               <Typography color="textSecondary" gutterBottom>
                 Total Uploads
@@ -121,7 +122,7 @@ const MonitoringDashboard: React.FC = () => {
         </div>
 
         <div>
-          <Card style={{ minHeight: 120, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <Card style={{ minHeight: 160, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
             <CardContent>
               <Typography color="textSecondary" gutterBottom>
                 Active Uploads
@@ -132,7 +133,7 @@ const MonitoringDashboard: React.FC = () => {
         </div>
 
         <div>
-          <Card style={{ minHeight: 120, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <Card style={{ minHeight: 160, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
             <CardContent>
               <Typography color="textSecondary" gutterBottom>
                 Failed Uploads
@@ -145,12 +146,13 @@ const MonitoringDashboard: React.FC = () => {
         </div>
 
         <div>
-          <Card style={{ minHeight: 120, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <Card style={{ minHeight: 160
+            , display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
             <CardContent>
               <Typography color="textSecondary" gutterBottom>
-                Average Upload Speed
+                Average Speed
               </Typography>
-              <Typography variant="h4">
+              <Typography variant="h5">
                 {isNaN(stats.averageSpeed) || !isFinite(stats.averageSpeed)
                   ? '0.00'
                   : stats.averageSpeed.toFixed(2)

@@ -241,7 +241,15 @@ export const ResumableUpload: React.FC<ResumableUploadProps> = ({
             const currentFile = files.find(f => f.file === fileUpload.file);
             if (currentFile?.status === 'paused' || currentFile?.shouldCancel) {
               logger.info('Upload paused or cancelled, stopping:', { uploadId: currentUploadId });
-              throw new Error('Upload paused or cancelled');
+              // Only set error if cancelled, not paused
+              if (currentFile?.shouldCancel) {
+                setFiles(prev => prev.map(f => 
+                  f.file === fileUpload.file ? { ...f, status: 'error', error: 'Upload cancelled' } : f
+                ));
+                onError('Upload cancelled');
+              }
+              // For pause, just break/return without error
+              return;
             }
 
             const start = i * CHUNK_SIZE;
@@ -347,6 +355,7 @@ export const ResumableUpload: React.FC<ResumableUploadProps> = ({
   }, [files, onUploadComplete, onError]);
 
   const handlePause = (file: File) => {
+    console.log('paused-------')
     setFiles(prev => prev.map(f => 
       f.file === file ? { ...f, status: 'paused' } : f
     ));
@@ -494,7 +503,7 @@ export const ResumableUpload: React.FC<ResumableUploadProps> = ({
           disabled={isUploading || files.every(f => f.status === 'completed')}
           sx={{ mt: 2 }}
         >
-          Start Upload
+          {files.some(f => f.status === 'paused') ? 'RESUME UPLOAD' : 'START UPLOAD'}
         </Button>
       )}
     </Box>
