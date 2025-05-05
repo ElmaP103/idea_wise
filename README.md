@@ -5,11 +5,10 @@ A cross-platform media file upload solution that supports both web and mobile pl
 ## Project Structure
 
 ```
-media-upload/
+IDEAWISE/
 ├── frontend/          # React web application
 ├── backend/           # Node.js backend server
-└── mobile/           # React Native mobile application (coming soon)
-```
+└── MediaUploadMobile_expo/   # React Native mobile application 
 
 ## Features
 
@@ -50,8 +49,8 @@ media-upload/
 
 1. Clone the repository:
    ```bash
-   git clone <repository-url>
-   cd media-upload
+   git clone MediaUploadMobile_expo
+   cd IDEAWISE
    ```
 
 2. Install backend dependencies:
@@ -140,14 +139,4 @@ Request body:
 GET /api/upload/status/:uploadId
 ```
 
-## Contributing
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details. 
+ 
