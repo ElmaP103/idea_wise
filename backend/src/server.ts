@@ -47,6 +47,9 @@ const FINAL_DIR = path.join(UPLOAD_DIR, 'final');
 // In-memory storage instead of Redis
 const uploadStore: Record<string, any> = {};
 
+// Constants
+const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks
+
 // Track upload progress
 const trackUploadProgress = async (uploadId: string) => {
   try {
@@ -239,29 +242,47 @@ app.post('/api/upload/chunk/:uploadId',
           status: 'in_progress',
           startTime: Date.now(),
           endTime: null,
-          uploadSpeed: 0
+          uploadSpeed: 0,
+          lastUpdateTime: Date.now(),
+          lastBytesUploaded: 0
         };
       }
       
       // Update the store entry
       const storeEntry = uploadStore[uploadKey];
       if (storeEntry) {
+        const now = Date.now();
+        const timeDiff = (now - (storeEntry.lastUpdateTime || now)) / 1000; // Convert to seconds
+        const bytesUploaded = Math.min((parseInt(chunkIndex) + 1) * CHUNK_SIZE, storeEntry.fileSize);
+        const bytesDiff = bytesUploaded - (storeEntry.lastBytesUploaded || 0);
+        const currentSpeed = timeDiff > 0 ? (bytesDiff / timeDiff) / (1024 * 1024) : 0; // MB/s
+
         storeEntry.uploadedChunks += 1;
+        storeEntry.lastUpdateTime = now;
+        storeEntry.lastBytesUploaded = bytesUploaded;
+        storeEntry.uploadSpeed = currentSpeed;
         
         logger.info('Chunk uploaded', {
           uploadId,
           chunkIndex,
           uploadedChunks: storeEntry.uploadedChunks,
-          totalChunks: storeEntry.totalChunks
+          totalChunks: storeEntry.totalChunks,
+          currentSpeed
         });
         
         // Check if upload is complete
         if (storeEntry.uploadedChunks === storeEntry.totalChunks) {
           await trackUploadProgress(uploadId);
         }
+
+        res.json({ 
+          success: true,
+          currentSpeed,
+          uploadedChunks: storeEntry.uploadedChunks,
+          totalChunks: storeEntry.totalChunks,
+          progress: (storeEntry.uploadedChunks / storeEntry.totalChunks) * 100
+        });
       }
-      
-      res.json({ success: true });
     } catch (error) {
       logger.error('Chunk upload failed:', error);
       res.status(500).json({ error: 'Internal server error during chunk upload' });
@@ -309,7 +330,7 @@ app.post('/api/upload/complete/:uploadId', async (req, res) => {
     // Set endTime and calculate speed
     const endTime = Date.now();
     const durationSeconds = (endTime - uploadInfo.startTime) / 1000;
-    const uploadSpeed = durationSeconds > 0 ? (uploadInfo.fileSize / durationSeconds) / (1024 * 1024) : 0; // MB/s
+    const uploadSpeed = durationSeconds > 0 ? (uploadInfo.fileSize / durationSeconds) / (1024 * 1024) : 0;
     
     // Update the upload store with completed status
     uploadStore[uploadKey] = {
@@ -450,6 +471,7 @@ app.get('/api/monitoring/stats', async (req, res) => {
     const averageSpeed = completedUploads.length > 0
       ? completedUploads.reduce((sum, u) => sum + (u.uploadSpeed || 0), 0) / completedUploads.length
       : 0;
+      console.log('Average speed:', averageSpeed);
 
     const stats = {
       totalUploads: uploads.length,

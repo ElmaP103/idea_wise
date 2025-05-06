@@ -25,6 +25,7 @@ interface FileUpload {
   uploadStartTime?: number;
   bytesUploaded?: number;
   currentSpeed?: number; // in MB/s
+  lastUpdateTime?: number; // Add this field to track last speed update
 }
 
 const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks
@@ -50,6 +51,7 @@ export const ResumableUpload: React.FC<ResumableUploadProps> = ({
   }, []);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    console.log('handleFileSelect-------');
     const selectedFiles = Array.from(event.target.files || []);
     if (selectedFiles.length > 0) {
       const newFiles = selectedFiles.map(file => ({
@@ -97,27 +99,21 @@ export const ResumableUpload: React.FC<ResumableUploadProps> = ({
   const uploadChunk = async (chunkData: Blob, chunkIndex: number, uploadId: string, retryCount = 0): Promise<void> => {
     const abortController = uploadAbortControllers.current[uploadId];
     try {
-      logger.info('Starting chunk upload:', {
-        chunkIndex,
-      uploadId,
-        retryCount,
-      chunkSize: chunkData.size
-    });
+      console.log('Starting chunk upload:', { chunkIndex, uploadId, retryCount });
 
       const formData = new FormData();
       formData.append('chunk', chunkData);
-    formData.append('chunkIndex', chunkIndex.toString());
-    formData.append('totalChunks', Math.ceil(chunkData.size / CHUNK_SIZE).toString());
+      formData.append('chunkIndex', chunkIndex.toString());
+      formData.append('totalChunks', Math.ceil(chunkData.size / CHUNK_SIZE).toString());
       formData.append('fileType', chunkData.type || '');
 
-        const response = await fetch(`/api/upload/chunk/${uploadId}`, {
-          method: 'POST',
-          body: formData,
+      const response = await fetch(`/api/upload/chunk/${uploadId}`, {
+        method: 'POST',
+        body: formData,
         signal: abortController?.signal
-        });
+      });
 
       if (response.status === 429) {
-        // Wait and retry, with exponential backoff
         if (retryCount < MAX_RETRIES) {
           const delay = RETRY_DELAY * Math.pow(2, retryCount);
           await new Promise(resolve => setTimeout(resolve, delay));
@@ -128,18 +124,18 @@ export const ResumableUpload: React.FC<ResumableUploadProps> = ({
 
       if (!response.ok) {
         const errorText = await response.text();
-          logger.error('Chunk upload failed:', {
-            status: response.status,
+        console.error('Chunk upload failed:', {
+          status: response.status,
           statusText: response.statusText,
           errorText,
-            uploadId,
-            chunkIndex,
-            retryCount
-          });
+          uploadId,
+          chunkIndex,
+          retryCount
+        });
           
         if (retryCount < MAX_RETRIES) {
           const delay = RETRY_DELAY * Math.pow(2, retryCount);
-          logger.info('Retrying chunk upload:', {
+          console.log('Retrying chunk upload:', {
             uploadId,
             chunkIndex,
             retryCount: retryCount + 1,
@@ -150,29 +146,46 @@ export const ResumableUpload: React.FC<ResumableUploadProps> = ({
         }
 
         throw new Error('Failed to upload chunk');
-        }
-
-        const result = await response.json();
-      logger.info('Chunk uploaded successfully:', {
-          uploadId,
-          chunkIndex,
-          result
-        });
-      } catch (error) {
-      if (abortController?.signal.aborted) {
-        logger.info('Chunk upload aborted:', { uploadId, chunkIndex });
-        throw new Error('Upload paused or cancelled');
       }
-      logger.error('Chunk upload error:', {
+
+      const data = await response.json();
+      console.log('Chunk uploaded successfully:', { 
+        uploadId, 
+        chunkIndex, 
+        speed: data.currentSpeed,
+        progress: data.progress 
+      });
+
+      // Update the file's speed and progress from the backend response
+      setFiles(prev => prev.map(f => 
+        f.uploadId === uploadId
+          ? {
+              ...f,
+              currentSpeed: data.currentSpeed,
+              progress: {
+                uploadedChunks: data.uploadedChunks,
+                totalChunks: data.totalChunks,
+                progress: data.progress
+              }
+            }
+          : f
+      ));
+    } catch (error) {
+      if (abortController?.signal.aborted) {
+        console.log('Chunk upload aborted:', { uploadId, chunkIndex });
+        // Don't throw error for pause, just return
+        return;
+      }
+      console.error('Chunk upload error:', {
         error,
-            uploadId,
+        uploadId,
         chunkIndex,
         retryCount
-          });
+      });
         
       if (retryCount < MAX_RETRIES) {
         const delay = RETRY_DELAY * Math.pow(2, retryCount);
-        logger.info('Retrying chunk upload after error:', {
+        console.log('Retrying chunk upload after error:', {
           uploadId,
           chunkIndex,
           retryCount: retryCount + 1,
@@ -204,51 +217,44 @@ export const ResumableUpload: React.FC<ResumableUploadProps> = ({
       const batch = pendingFiles.slice(i, i + MAX_CONCURRENT_UPLOADS);
       await Promise.all(batch.map(async (fileUpload) => {
         try {
+          // Create an AbortController for this upload before starting
+          const abortController = new AbortController();
+          const uploadId = fileUpload.uploadId || await initializeUpload(fileUpload.file);
+          uploadAbortControllers.current[uploadId] = abortController;
+
+          // If resuming, keep the existing progress
+          const existingProgress = fileUpload.progress;
+          const startChunk = existingProgress?.uploadedChunks || 0;
+          const now = Date.now();
+
           setFiles(prev => prev.map(f => 
-            f.file === fileUpload.file ? { ...f, status: 'uploading', uploadStartTime: Date.now(), bytesUploaded: 0, currentSpeed: 0 } : f
+            f.file === fileUpload.file ? { 
+              ...f, 
+              status: 'uploading', 
+              uploadId,
+              uploadStartTime: now,
+              lastUpdateTime: now,
+              bytesUploaded: startChunk * CHUNK_SIZE,
+              currentSpeed: 0,
+              progress: existingProgress || {
+                uploadedChunks: 0,
+                totalChunks: Math.ceil(fileUpload.file.size / CHUNK_SIZE),
+                progress: 0
+              }
+            } : f
           ));
 
-          let currentUploadId = fileUpload.uploadId;
-          if (!currentUploadId) {
-            currentUploadId = await initializeUpload(fileUpload.file);
-            setFiles(prev => prev.map(f => 
-              f.file === fileUpload.file ? { ...f, uploadId: currentUploadId } : f
-            ));
-          }
-
-          if (!currentUploadId) {
-            throw new Error('Failed to get upload ID');
-          }
-
-          // Create an AbortController for this upload
-          uploadAbortControllers.current[currentUploadId] = new AbortController();
-
           const totalChunks = Math.ceil(fileUpload.file.size / CHUNK_SIZE);
-          let startChunk = fileUpload.progress?.uploadedChunks || 0;
 
           for (let i = startChunk; i < totalChunks; i++) {
-            // On first chunk, set uploadStartTime if not already set
-            if (i === 0 || !fileUpload.uploadStartTime) {
-              setFiles(prev => prev.map(f =>
-                f.file === fileUpload.file
-                  ? { ...f, uploadStartTime: Date.now(), bytesUploaded: 0, currentSpeed: 0 }
-                  : f
-              ));
-              fileUpload.uploadStartTime = Date.now();
-            }
-
-            // Check for pause or cancel before each chunk
+            // Only check for cancel, not pause
             const currentFile = files.find(f => f.file === fileUpload.file);
-            if (currentFile?.status === 'paused' || currentFile?.shouldCancel) {
-              logger.info('Upload paused or cancelled, stopping:', { uploadId: currentUploadId });
-              // Only set error if cancelled, not paused
-              if (currentFile?.shouldCancel) {
-                setFiles(prev => prev.map(f => 
-                  f.file === fileUpload.file ? { ...f, status: 'error', error: 'Upload cancelled' } : f
-                ));
-                onError('Upload cancelled');
-              }
-              // For pause, just break/return without error
+            if (currentFile?.shouldCancel) {
+              console.log('Upload cancelled, stopping:', { uploadId });
+              setFiles(prev => prev.map(f => 
+                f.file === fileUpload.file ? { ...f, status: 'error', error: 'Upload cancelled' } : f
+              ));
+              onError('Upload cancelled');
               return;
             }
 
@@ -256,81 +262,65 @@ export const ResumableUpload: React.FC<ResumableUploadProps> = ({
             const end = Math.min(start + CHUNK_SIZE, fileUpload.file.size);
             const chunk = fileUpload.file.slice(start, end);
 
-            await uploadChunk(chunk, i, currentUploadId);
-
-            const newProgress = {
-              uploadedChunks: i + 1,
-              totalChunks,
-              progress: ((i + 1) / totalChunks) * 100,
-            };
-
-            const now = Date.now();
-            const elapsedSeconds = (now - (fileUpload.uploadStartTime || now)) / 1000;
-            // Use i+1 for bytesUploaded, always capped at file size
-            const bytesUploaded = Math.min((i + 1) * CHUNK_SIZE, fileUpload.file.size);
-            const currentSpeed = elapsedSeconds > 0 ? (bytesUploaded / elapsedSeconds) / (1024 * 1024) : 0;
-
-            setFiles(prev => prev.map(f => 
-              f.file === fileUpload.file
-                ? {
-                    ...f,
-                    progress: newProgress,
-                    bytesUploaded,
-                    currentSpeed
-                  }
-                : f
-            ));
-
-            const status = await checkUploadStatus(currentUploadId);
-            if (status.status === 'completed') {
-              // Set final speed for completed upload
-              const finalNow = Date.now();
-              const finalElapsedSeconds = (finalNow - (fileUpload.uploadStartTime || finalNow)) / 1000;
-              const finalSpeed = finalElapsedSeconds > 0 ? (fileUpload.file.size / finalElapsedSeconds) / (1024 * 1024) : 0;
-              setFiles(prev => prev.map(f =>
-                f.file === fileUpload.file ? { ...f, status: 'completed', currentSpeed: finalSpeed } : f
-              ));
-              // Always PATCH final speed to backend
-              if (currentUploadId) {
-                try {
-                  await fetch(`/api/upload/${currentUploadId}/speed`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ uploadSpeed: finalSpeed })
-                  });
-                } catch (e) {
-                  logger.error('Failed to update upload speed on server', e);
-                }
-              }
-              completedUploadIds.push(currentUploadId);
-              return;
-            }
-          }
-
-          // After upload completes, set final speed (for uploads that don't hit the early return)
-          const now = Date.now();
-          const elapsedSeconds = (now - (fileUpload.uploadStartTime || now)) / 1000;
-          const finalSpeed = elapsedSeconds > 0 ? (fileUpload.file.size / elapsedSeconds) / (1024 * 1024) : 0;
-          setFiles(prev => prev.map(f =>
-            f.file === fileUpload.file
-              ? { ...f, status: 'completed', currentSpeed: finalSpeed }
-              : f
-          ));
-          // Always PATCH final speed to backend
-          if (currentUploadId) {
             try {
-              await fetch(`/api/upload/${currentUploadId}/speed`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ uploadSpeed: finalSpeed })
+              const formData = new FormData();
+              formData.append('chunk', chunk);
+              formData.append('chunkIndex', i.toString());
+              formData.append('totalChunks', totalChunks.toString());
+              formData.append('fileType', chunk.type || '');
+
+              const response = await fetch(`/api/upload/chunk/${uploadId}`, {
+                method: 'POST',
+                body: formData,
+                signal: abortController.signal
               });
-            } catch (e) {
-              logger.error('Failed to update upload speed on server', e);
+
+              if (!response.ok) {
+                throw new Error('Failed to upload chunk');
+              }
+
+              const now = Date.now();
+              const newProgress = {
+                uploadedChunks: i + 1,
+                totalChunks,
+                progress: ((i + 1) / totalChunks) * 100,
+              };
+
+              // Calculate speed based on the last update
+              const currentFile = files.find(f => f.file === fileUpload.file);
+              const lastUpdateTime = currentFile?.lastUpdateTime || now;
+              const lastBytesUploaded = currentFile?.bytesUploaded || 0;
+              const bytesUploaded = Math.min((i + 1) * CHUNK_SIZE, fileUpload.file.size);
+              const timeDiff = (now - lastUpdateTime) / 1000; // Convert to seconds
+              const bytesDiff = bytesUploaded - lastBytesUploaded;
+              const currentSpeed = timeDiff > 0 ? (bytesDiff / timeDiff) / (1024 * 1024) : 0; // Convert to MB/s
+
+              setFiles(prev => prev.map(f => 
+                f.file === fileUpload.file
+                  ? {
+                      ...f,
+                      progress: newProgress,
+                      bytesUploaded,
+                      currentSpeed,
+                      lastUpdateTime: now
+                    }
+                  : f
+              ));
+            } catch (error) {
+              if (error instanceof Error && error.name === 'AbortError') {
+                console.log('Upload aborted:', { uploadId });
+                return;
+              }
+              throw error;
             }
           }
-          completedUploadIds.push(currentUploadId);
+
+          setFiles(prev => prev.map(f =>
+            f.file === fileUpload.file ? { ...f, status: 'completed' } : f
+          ));
+          completedUploadIds.push(uploadId);
         } catch (error) {
-          logger.error('Upload failed:', error);
+          console.error('Upload failed:', error);
           setFiles(prev => prev.map(f => 
             f.file === fileUpload.file ? { 
               ...f, 
@@ -355,24 +345,46 @@ export const ResumableUpload: React.FC<ResumableUploadProps> = ({
   }, [files, onUploadComplete, onError]);
 
   const handlePause = (file: File) => {
-    console.log('paused-------')
-    setFiles(prev => prev.map(f => 
-      f.file === file ? { ...f, status: 'paused' } : f
-    ));
+    console.log('Pause button clicked for file:', file.name);
     const uploadId = files.find(f => f.file === file)?.uploadId;
+    console.log('Upload ID:', uploadId);
+    
     if (uploadId && uploadAbortControllers.current[uploadId]) {
+      console.log('ABORTING UPLOAD');
       uploadAbortControllers.current[uploadId].abort();
+      delete uploadAbortControllers.current[uploadId];
     }
+
+    setFiles(prev => prev.map(f => 
+      f.file === file ? { ...f, status: 'paused', shouldCancel: false } : f
+    ));
   };
 
   const handleResume = (file: File) => {
+    console.log('Resume button clicked for file:', file.name);
+    const fileUpload = files.find(f => f.file === file);
+    if (!fileUpload) {
+      console.log('File not found');
+      return;
+    }
+
+    // Set status to pending to trigger upload
     setFiles(prev => prev.map(f => 
-      f.file === file ? { ...f, status: 'pending' } : f
+      f.file === file ? { 
+        ...f, 
+        status: 'pending',
+        progress: f.progress,
+        uploadId: f.uploadId,
+        shouldCancel: false // Reset cancel flag
+      } : f
     ));
+
+    // Start the upload process
     startUpload();
   };
 
   const handleCancel = async (file: File) => {
+    console.log('cancelling-------');
     setFiles(prev => prev.map(f =>
       f.file === file ? { ...f, shouldCancel: true, status: 'error', error: 'Upload cancelled' } : f
     ));
@@ -436,12 +448,22 @@ export const ResumableUpload: React.FC<ResumableUploadProps> = ({
             secondaryAction={
               <Box>
                 {fileUpload.status === 'uploading' && (
-                  <IconButton onClick={() => handlePause(fileUpload.file)}>
+                  <IconButton 
+                    onClick={() => {
+                      console.log('Pause button clicked in UI');
+                      handlePause(fileUpload.file);
+                    }}
+                  >
                     <PauseIcon />
                   </IconButton>
                 )}
                 {fileUpload.status === 'paused' && (
-                  <IconButton onClick={() => handleResume(fileUpload.file)}>
+                  <IconButton 
+                    onClick={() => {
+                      console.log('Resume button clicked in UI');
+                      handleResume(fileUpload.file);
+                    }}
+                  >
                     <PlayArrowIcon />
                   </IconButton>
                 )}
@@ -452,8 +474,8 @@ export const ResumableUpload: React.FC<ResumableUploadProps> = ({
                 )}
                 {(fileUpload.status === 'pending' || fileUpload.status === 'uploading' || fileUpload.status === 'paused') && (
                   <IconButton onClick={() => handleCancel(fileUpload.file)}>
-                  <DeleteIcon />
-                </IconButton>
+                    <DeleteIcon />
+                  </IconButton>
                 )}
               </Box>
             }

@@ -182,6 +182,10 @@ export const UploadManager: React.FC = () => {
     setFiles(prev => prev.map(f => 
       f === file ? { ...f, status: 'paused' } : f
     ));
+    // Abort the current upload
+    if (file.uploadId) {
+      uploadMutation.reset();
+    }
   };
 
   const handleResume = (file: FileWithPreview) => {
