@@ -1,96 +1,86 @@
 # MediaUploadMobile_expo
 
-A React Native (Expo) mobile app for uploading large images and videos with chunked, resumable, and concurrent upload support.
+A React Native (Expo) mobile app for selecting, recording, previewing, and uploading images and videos with resumable upload support.
 
 ## Features
-- **Chunked Uploads:** Upload large files in chunks (default: 1MB, configurable)
-- **Resumable Uploads:** Pause, resume, and cancel uploads
-- **Concurrent Uploads:** Upload up to 3 files at once
-- **Progress Tracking:** See per-file progress and speed
-- **File Validation:** Supports images and videos, up to 2GB per file
-- **Modern UI:** Clean, mobile-friendly interface
-- **Error Handling:** Retry on network errors, clear error messages
+- **Pick images or videos** from the device library (multiple selection supported)
+- **Capture photos or record videos** using the device camera
+- **Video preview** with Save/Delete/Cancel options before upload
+- **Upload queue** with resumable, concurrent uploads (up to 3 at a time)
+- **Progress tracking** for each file and overall
+- **Spinner/loading indicator** while picking large files or uploading
+- **Robust permission handling** for camera, microphone, and media library
+- **Error handling** for large files, unsupported types, and permission issues
 
 ## Getting Started
 
-### Prerequisites
-- [Node.js](https://nodejs.org/)
-- [Expo CLI](https://docs.expo.dev/get-started/installation/)
-- A backend server that supports chunked uploads (see `/api/upload/chunk`, `/api/upload/init`, etc.)
+### 1. Install dependencies
 
-### Installation
-```bash
-# Clone the repo
-git clone https://github.com/ElmaP103/idea_wise
-cd MediaUploadMobile_expo
-
-# Install dependencies
+```sh
 npm install
-# or
-yarn install
 ```
 
-### Running the App
-```bash
-# Start the Expo development server
+### 2. Start the Expo development server
+
+```sh
 npx expo start
-
 ```
-- Scan the QR code with the Expo Go app on your device, or run on an emulator.
+
+### 3. Run on your device or emulator
+
+- Use the Expo Go app (Android/iOS) or an emulator/simulator.
 
 ## Usage
-1. **Choose Images or Videos:** Tap the button to select up to 10 files (images/videos, max 2GB each).
-2. **Take Photo/Record Video:** Use the camera to capture new media.
-3. **Start Upload:** Tap the START UPLOAD button to begin uploading.
-4. **Pause/Resume/Cancel:** Use the controls on each upload item to pause, resume, or cancel uploads.
-5. **Monitor Progress:** See progress bars and speed for each file.
+- **Choose Images or Videos:**  
+  Tap "CHOOSE IMAGES OR VIDEOS" to select files from your library.
+- **Take Photo or Record Video:**  
+  Tap "TAKE PHOTO" or toggle to "RECORD VIDEO" and tap to capture.
+- **Preview Video:**  
+  After recording, preview the video and choose to Save, Delete, or Cancel.
+- **Upload:**  
+  Tap "START UPLOAD" to begin uploading files. Progress is shown for each file.
+- **Remove File:**  
+  Remove files from the upload list as needed.
+
+## Permissions
+The app requests the following permissions:
+- Camera
+- Microphone (for video recording)
+- Media Library
+
+These are handled automatically, but you may need to accept prompts on your device.
 
 ## Configuration
-- **Chunk Size:**
-  - Edit `CHUNK_SIZE` in `src/components/UploadItem.tsx` (default: 1MB)
-- **Max File Size:**
-  - Edit validation in `src/utils/validation.ts` and `src/components/FilePicker.tsx` (default: 2GB)
-- **Concurrent Uploads:**
-  - Edit logic in `src/components/UploadManager.tsx` (default: 3)
+**app.json** includes the necessary Expo plugins for camera and permissions:
 
-## File Structure
+```json
+"plugins": [
+  [
+    "expo-camera",
+    {
+      "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera",
+      "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone",
+      "recordAudioAndroid": true
+    }
+  ]
+]
 ```
-MediaUploadMobile_expo/
-├── app/
-│   └── index.tsx           # App entry, manages files state
-├── src/
-│   ├── components/
-│   │   ├── FilePicker.tsx  # File/camera picker UI
-│   │   ├── UploadManager.tsx # Upload list and controls
-│   │   ├── UploadItem.tsx  # Per-file upload logic and UI
-│   │   └── FilePreview.tsx # File preview UI
-│   └── utils/
-│       ├── validation.ts   # File validation logic
-│       └── upload.ts       # (Stub) upload logic
-├── package.json
-├── README.md
-└── ...
-```
-
-## Backend API Requirements
-Your backend must support:
-- `POST /api/upload/init` — initialize upload, returns `uploadId`
-- `POST /api/upload/chunk/:uploadId` — upload a chunk
-- `POST /api/upload/complete/:uploadId` — complete upload
-- `GET /api/upload/status/:uploadId` — check upload status
-- `PATCH /api/upload/:uploadId/speed` — update upload speed
-- `DELETE /api/upload/:uploadId` — cancel/delete upload
-
-See the backend folder in your repo for a sample implementation.
 
 ## Troubleshooting
-- **Button not clickable or overlapped:** Ensure ScrollView and button are in separate containers, and use proper margins.
-- **Large files not uploading:** Check backend limits, device memory, and chunk size.
-- **Cancel not working:** Make sure parent passes `onRemoveFile` prop and manages files state.
-- **UI not updating:** Check that state is lifted to the parent and passed as props.
+- If you encounter issues with camera or permissions, ensure you have accepted all permission prompts.
+- If the upload button is disabled after uploading, try adding new files; the button will re-enable.
+- For large files, a spinner is shown while files are being picked or processed.
 
-## Customization
-- Change colors, styles, and layout in the component files.
-- Adjust chunk size, max file size, and concurrency as needed.
+## File Structure
+- `src/components/FilePicker.tsx` — Handles file picking, camera, and video preview
+- `src/components/UploadManager.tsx` — Manages upload queue, progress, and upload button
+- `src/components/UploadItem.tsx` — Displays individual file upload progress
+- `app/index.tsx` — Main app entry, manages file state and layout
+
+## Development Notes
+- Built with Expo SDK 53+, React Native 0.79+, and expo-camera 16+
+- Uses functional components and React hooks
+- Designed for extensibility and easy integration with backend upload APIs
+
 
 
