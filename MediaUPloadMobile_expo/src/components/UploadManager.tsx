@@ -1,6 +1,7 @@
-import React, { useState, useRef } from 'react';
-import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import UploadItem from './UploadItem';
+import FilePicker from './FilePicker';
 
 export default function UploadManager({
   files,
@@ -17,6 +18,7 @@ export default function UploadManager({
   const [uploadStates, setUploadStates] = useState<{ [uri: string]: any }>({});
   const [uploading, setUploading] = useState(false);
   const [activeUploads, setActiveUploads] = useState<string[]>([]);
+  const [picking, setPicking] = useState(false);
 
   const uploadRefs = useRef<{ [uri: string]: { start: () => void } }>({});
 
@@ -63,6 +65,20 @@ export default function UploadManager({
 
   const isDisabled = files.length === 0 || (uploading && activeUploads.length > 0);
 
+  useEffect(() => {
+    // If not uploading, or all files are completed, reset uploading state
+    const allCompleted = files.length > 0 && files.every(f => uploadStates[f.uri]?.status === 'completed');
+    if ((!uploading && activeUploads.length > 0) || allCompleted) {
+      setUploading(false);
+      setActiveUploads([]);
+    }
+    // If new files are added after upload, re-enable the button
+    if (!uploading && files.some(f => !uploadStates[f.uri] || uploadStates[f.uri].status !== 'completed')) {
+      setUploading(false);
+      setActiveUploads([]);
+    }
+  }, [files, uploadStates]);
+
   return (
     <View style={{ width: 340, flex: 1, flexDirection: 'column' }}>
       {/* Button section - separate wrapper */}
@@ -88,16 +104,22 @@ export default function UploadManager({
             START UPLOAD
           </Text>
         </TouchableOpacity>
-  
+
         {files.length === 0 && (
           <Text style={{ color: '#888', textAlign: 'center', marginTop: 16 }}>
             No files to upload.
           </Text>
         )}
       </View>
-  
+
       {/* ScrollView section - completely separate from button section */}
       <View style={{ flex: 1 }}>
+        {picking && (
+          <View style={{ alignItems: 'center', marginVertical: 16 }}>
+            <ActivityIndicator size="large" color="#2f95dc" />
+            <Text>Loading files...</Text>
+          </View>
+        )}
         {files.length > 0 && (
           <ScrollView
             style={{ flex: 1 }}
@@ -107,8 +129,7 @@ export default function UploadManager({
             {files.map(file => (
               <UploadItem
                 key={file.uri}
-                file={file}
-                onStateChange={(state: any) => handleStateChange(file.uri, state)}
+                file={file} onStateChange={(state: any) => handleStateChange(file.uri, state)}
                 ref={(ref: any) => {
                   if (ref) uploadRefs.current[file.uri] = ref;
                 }}
@@ -120,4 +141,4 @@ export default function UploadManager({
     </View>
   );
 }
-  
+
