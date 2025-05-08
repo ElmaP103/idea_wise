@@ -103,7 +103,7 @@ const styles = StyleSheet.create({
   },
 });
 
-export default function FilePicker({ onFilesSelected }: { onFilesSelected: (files: any[]) => void }) {
+export default function FilePicker({ onFilesSelected, onPickingStart, onPickingEnd }: { onFilesSelected: (files: any[]) => void, onPickingStart?: () => void, onPickingEnd?: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [cameraVideo, setCameraVideo] = useState(false);
   const [videoPreview, setVideoPreview] = useState<any | null>(null);
@@ -125,34 +125,43 @@ export default function FilePicker({ onFilesSelected }: { onFilesSelected: (file
 
   const pickMedia = async () => {
     setError(null);
-    const granted = await requestAllPermissions();
-    if (!granted) {
-      setError('Permission to access media library and camera is required!');
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.All,
-      allowsMultipleSelection: true,
-      quality: 1,
-    });
-    if (!result.canceled && result.assets && result.assets.length > 0) {
-      if (result.assets.length > 10) {
-        setError('You can select up to 10 files.');
+    if (onPickingStart) onPickingStart();
+    try {
+      const granted = await requestAllPermissions();
+      if (!granted) {
+        setError('Permission to access media library and camera is required!');
+        if (onPickingEnd) onPickingEnd();
         return;
       }
-      for (const asset of result.assets) {
-        if (!asset.type || (asset.type !== 'image' && asset.type !== 'video')) {
-          setError('Only images and videos are allowed.');
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.All,
+        allowsMultipleSelection: true,
+        quality: 1,
+      });
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        if (result.assets.length > 10) {
+          setError('You can select up to 10 files.');
+          if (onPickingEnd) onPickingEnd();
           return;
         }
-        if (asset.fileSize && asset.fileSize > 2 * 1024 * 1024 * 1024) {
-          setError('File too large (max 2GB).');
-          return;
+        for (const asset of result.assets) {
+          if (!asset.type || (asset.type !== 'image' && asset.type !== 'video')) {
+            setError('Only images and videos are allowed.');
+            if (onPickingEnd) onPickingEnd();
+            return;
+          }
+          if (asset.fileSize && asset.fileSize > 2 * 1024 * 1024 * 1024) {
+            setError('File too large (max 2GB).');
+            if (onPickingEnd) onPickingEnd();
+            return;
+          }
         }
+        onFilesSelected(result.assets.map(asset => ({ ...asset, status: 'pending', uploadedAt: Date.now() })));
+      } else {
+        setError('No files selected.');
       }
-      onFilesSelected(result.assets.map(asset => ({ ...asset, status: 'pending', uploadedAt: Date.now() })));
-    } else {
-      setError('No files selected.');
+    } finally {
+      if (onPickingEnd) onPickingEnd();
     }
   };
 

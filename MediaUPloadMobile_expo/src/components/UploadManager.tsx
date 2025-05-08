@@ -6,11 +6,13 @@ import FilePicker from './FilePicker';
 export default function UploadManager({
   files,
   onRemoveFile,
+  picking = false,
   showButtonOnly = false,
   showListOnly = false,
 }: {
   files: any[];
   onRemoveFile: (uri: string) => void;
+  picking?: boolean;
   showButtonOnly?: boolean;
   showListOnly?: boolean;
 }) {
@@ -18,7 +20,6 @@ export default function UploadManager({
   const [uploadStates, setUploadStates] = useState<{ [uri: string]: any }>({});
   const [uploading, setUploading] = useState(false);
   const [activeUploads, setActiveUploads] = useState<string[]>([]);
-  const [picking, setPicking] = useState(false);
 
   const uploadRefs = useRef<{ [uri: string]: { start: () => void } }>({});
 
@@ -61,7 +62,9 @@ export default function UploadManager({
   // Calculate overall progress
   const total = files.length;
   const completed = files.filter(f => uploadStates[f.uri]?.status === 'completed').length;
-  const overallProgress = total > 0 ? completed / total : 0;
+  const overallProgress = total > 0
+    ? files.reduce((sum, f) => sum + (uploadStates[f.uri]?.progress || 0), 0) / total
+    : 0;
 
   const isDisabled = files.length === 0 || (uploading && activeUploads.length > 0);
 
@@ -83,6 +86,18 @@ export default function UploadManager({
     <View style={{ width: '100%', flex: 1, flexDirection: 'column', position: 'relative', alignItems: 'center' }}>
       {/* Scrollable file list */}
       <View style={{ flex: 1, paddingBottom: 80, width: '100%', alignItems: 'center' }}>
+        {/* Overall progress bar */}
+        {files.length > 0 && (
+          <View style={{ width: 340, marginBottom: 16 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+              <Text style={{ fontWeight: 'bold', fontSize: 14, color: '#888' }}>Overall Progress</Text>
+              <Text style={{ marginLeft: 'auto', fontWeight: 'bold', fontSize: 14, color: '#888' }}>{(overallProgress * 100).toFixed(1)}%</Text>
+            </View>
+            <View style={{ height: 8, width: '100%', backgroundColor: '#eee', borderRadius: 4, overflow: 'hidden' }}>
+              <View style={{ height: 8, width: `${overallProgress * 100}%`, backgroundColor: '#b39ddb' }} />
+            </View>
+          </View>
+        )}
         {picking && (
           <View style={{ alignItems: 'center', marginVertical: 16 }}>
             <ActivityIndicator size="large" color="#2f95dc" />
@@ -120,6 +135,8 @@ export default function UploadManager({
             backgroundColor: isDisabled ? '#b0b0b0' : '#b39ddb',
             borderRadius: 24,
             alignItems: 'center',
+            flexDirection: 'row',
+            justifyContent: 'center',
             width: 340,
             alignSelf: 'center',
             paddingVertical: 14,
@@ -131,6 +148,9 @@ export default function UploadManager({
           onPress={handleStartAll}
           disabled={isDisabled}
         >
+          {picking && (
+            <ActivityIndicator size="small" color="#fff" style={{ marginRight: 10 }} />
+          )}
           <Text
             style={{
               color: '#fff',

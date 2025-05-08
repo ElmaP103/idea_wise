@@ -3,6 +3,16 @@ import { View, Text, Button, Image, TouchableOpacity } from 'react-native';
 
 const CHUNK_SIZE = 1024 * 1024; // 1MB
 
+// Helper to categorize error messages
+function getCategorizedErrorMessage(error: string | null): { message: string, color: string } | null {
+  if (!error) return null;
+  if (error.toLowerCase().includes('too large')) return { message: 'File too large (max 2GB)', color: '#e67e22' };
+  if (error.toLowerCase().includes('invalid type')) return { message: 'Invalid file type (only images/videos allowed)', color: '#e67e22' };
+  if (error.toLowerCase().includes('network')) return { message: 'Network issue. Please check your connection.', color: '#e74c3c' };
+  if (error.toLowerCase().includes('retry')) return { message: 'Upload failed after 3 retries', color: '#e74c3c' };
+  return { message: error, color: '#e74c3c' };
+}
+
 const UploadItem = forwardRef(function UploadItem(
   {
     file,
@@ -127,43 +137,48 @@ const UploadItem = forwardRef(function UploadItem(
           <Text style={{ fontSize: 12, color: '#666' }}>{file.fileSize ? (file.fileSize / 1024).toFixed(1) : ''} KB</Text>
           <Text style={{ fontSize: 12, color: '#666' }}>Progress: {(progress * 100).toFixed(1)}%</Text>
           <View style={{ height: 8, width: '100%', backgroundColor: '#eee', borderRadius: 4, overflow: 'hidden', marginVertical: 4 }}>
-            <View style={{ height: 8, width: `${progress * 100}%`, backgroundColor: '#2f95dc' }} />
+            <View style={{ height: 8, width: `${progress * 100}%`, backgroundColor: '#b39ddb' }} />
           </View>
           <Text style={{ fontSize: 12, color: '#666' }}>Speed: {speed} KB/s</Text>
-          {error && <Text style={{ color: 'red', fontSize: 12 }}>{error}</Text>}
+          {(() => {
+            const categorized = getCategorizedErrorMessage(error);
+            return categorized ? (
+              <Text style={{ color: categorized.color, fontSize: 12, fontWeight: 'bold' }}>{categorized.message}</Text>
+            ) : null;
+          })()}
         </View>
       </View>
       <View style={{ flexDirection: 'row', marginTop: 8, justifyContent: 'flex-end' }}>
         {status === 'uploading' ? (
           <>
             <TouchableOpacity
-              style={{ backgroundColor: '#8e44ad', borderRadius: 24, paddingVertical: 6, paddingHorizontal: 18, marginRight: 8 }}
+              style={{ backgroundColor: '#d1e7d7', borderRadius: 24, paddingVertical: 6, paddingHorizontal: 18, marginRight: 8 }}
               onPress={pauseUpload}
             >
-              <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 14 }}>Pause</Text>
+              <Text style={{ color: '#333', fontWeight: 'bold', fontSize: 14 }}>Pause</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={{ backgroundColor: '#FC0101', borderRadius: 24, paddingVertical: 6, paddingHorizontal: 18 }}
+              style={{ backgroundColor: '#ffe0b2', borderRadius: 24, paddingVertical: 6, paddingHorizontal: 18 }}
               onPress={cancelUpload}
             >
-              <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 14 }}>Cancel</Text>
+              <Text style={{ color: '#333', fontWeight: 'bold', fontSize: 14 }}>Cancel</Text>
             </TouchableOpacity>
           </>
         ) : null}
         {status === 'paused' ? (
           <TouchableOpacity
-            style={{ backgroundColor: '#8e44ad', borderRadius: 24, paddingVertical: 6, paddingHorizontal: 18 }}
+            style={{ backgroundColor: '#d1e7d7', borderRadius: 24, paddingVertical: 6, paddingHorizontal: 18 }}
             onPress={resumeUpload}
           >
-            <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 14 }}>Resume</Text>
+            <Text style={{ color: '#333', fontWeight: 'bold', fontSize: 14 }}>Resume</Text>
           </TouchableOpacity>
         ) : null}
         {status === 'error' ? (
           <TouchableOpacity
-            style={{ backgroundColor: '#8e44ad', borderRadius: 24, paddingVertical: 6, paddingHorizontal: 18 }}
+            style={{ backgroundColor: '#d1e7d7', borderRadius: 24, paddingVertical: 6, paddingHorizontal: 18 }}
             onPress={startUpload}
           >
-            <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 14 }}>Retry</Text>
+            <Text style={{ color: '#333', fontWeight: 'bold', fontSize: 14 }}>Retry</Text>
           </TouchableOpacity>
         ) : null}
         {status === 'completed' ? (
