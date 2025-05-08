@@ -14,11 +14,8 @@ export default function HomeScreen() {
     <View style={styles.container}>
       <View style={styles.fixedButtons}>
         <FilePicker onFilesSelected={setFiles} />
-        <UploadManager files={files} showButtonOnly onRemoveFile={handleRemoveFile} />
       </View>
-      <ScrollView style={styles.scrollArea} contentContainerStyle={{ paddingBottom: 32 }}>
-        <UploadManager files={files} showListOnly onRemoveFile={handleRemoveFile} />
-      </ScrollView>
+      <UploadManager files={files} onRemoveFile={handleRemoveFile} />
     </View>
   );
 }

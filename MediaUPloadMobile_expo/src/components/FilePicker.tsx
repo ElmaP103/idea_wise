@@ -4,6 +4,105 @@ import * as ImagePicker from 'expo-image-picker';
 import { Video, ResizeMode } from 'expo-av';
 import { CameraView, CameraType, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 
+const styles = StyleSheet.create({
+  button: {
+    backgroundColor: '#A3D192',
+    borderRadius: 24,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  redButton: {
+    backgroundColor: '#ffa500',
+    borderRadius: 24,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  fullWidthButton: {
+    flex: 1,
+  },
+  buttonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    letterSpacing: 1,
+    fontSize: 16,
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  previewContainer: {
+    backgroundColor: '#fff',
+    padding: 20,
+    borderRadius: 12,
+    alignItems: 'center',
+    width: '90%',
+    maxWidth: 400,
+  },
+  previewButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 20,
+    width: '100%',
+  },
+  previewButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 6,
+    minWidth: 100,
+    alignItems: 'center',
+  },
+  previewButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  cameraContainer: {
+    flex: 1,
+    backgroundColor: 'black',
+  },
+  camera: {
+    flex: 1,
+  },
+  cameraControls: {
+    flex: 1,
+    backgroundColor: 'transparent',
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'flex-end',
+    paddingBottom: 40,
+  },
+  cameraButton: {
+    padding: 15,
+    borderRadius: 50,
+    backgroundColor: '#2f95dc',
+    minWidth: 100,
+    alignItems: 'center',
+  },
+  cameraButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  recordButton: {
+    backgroundColor: '#e74c3c',
+  },
+  stopButton: {
+    backgroundColor: '#2f95dc',
+  },
+});
+
 export default function FilePicker({ onFilesSelected }: { onFilesSelected: (files: any[]) => void }) {
   const [error, setError] = useState<string | null>(null);
   const [cameraVideo, setCameraVideo] = useState(false);
@@ -84,7 +183,7 @@ export default function FilePicker({ onFilesSelected }: { onFilesSelected: (file
   };
 
   const stopRecording = async () => {
-    console.log('stopped--')
+
     if (cameraRef.current && isRecording) {
       await cameraRef.current.stopRecording();
     }
@@ -123,7 +222,7 @@ export default function FilePicker({ onFilesSelected }: { onFilesSelected: (file
   // Handle confirm/delete/return for video preview
   const handleConfirmVideo = () => {
     if (videoPreview) {
-      console.log('videoPreview---', videoPreview);
+
       handleUpload([{ ...videoPreview, status: 'pending', uploadedAt: Date.now() }]);
       setVideoPreview(null);
       setShowPreview(false);
@@ -141,7 +240,7 @@ export default function FilePicker({ onFilesSelected }: { onFilesSelected: (file
   };
 
   const handleUpload = async (files: any[]) => {
-    console.log('files---', files);
+
     setUploading(true);
     try {
       await onFilesSelected(files);
@@ -151,12 +250,12 @@ export default function FilePicker({ onFilesSelected }: { onFilesSelected: (file
   };
 
   return (
-    <View style={{ width: 340}}>
-      <TouchableOpacity style={styles.button} onPress={pickMedia}>
+    <View style={{ width: 340, alignSelf: 'center' }}>
+      <TouchableOpacity style={[styles.button, { width: '100%', marginLeft: 'auto', marginRight: 'auto' }]} onPress={pickMedia}>
         <Text style={styles.buttonText}>CHOOSE IMAGES OR VIDEOS</Text>
       </TouchableOpacity>
-      <View style={{ flexDirection: 'row', alignItems: 'center'}}>
-        <TouchableOpacity style={[styles.button, styles.fullWidthButton]} onPress={takeMedia}>
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <TouchableOpacity style={[styles.redButton, styles.fullWidthButton, { width: '100%', marginLeft: 'auto', marginRight: 'auto' }]} onPress={takeMedia}>
           <Text style={styles.buttonText}>
             {cameraVideo ? 'RECORD VIDEO' : 'TAKE PHOTO'}
           </Text>
@@ -252,86 +351,3 @@ export default function FilePicker({ onFilesSelected }: { onFilesSelected: (file
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  button: {
-    backgroundColor: '#2f95dc',
-    borderRadius: 6,
-    paddingVertical: 12,
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  fullWidthButton: {
-    flex: 1,
-  },
-  buttonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    letterSpacing: 1,
-  },
-  modalContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-  },
-  previewContainer: {
-    backgroundColor: '#fff',
-    padding: 20,
-    borderRadius: 12,
-    alignItems: 'center',
-    width: '90%',
-    maxWidth: 400,
-  },
-  previewButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 20,
-    width: '100%',
-  },
-  previewButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 6,
-    minWidth: 100,
-    alignItems: 'center',
-  },
-  previewButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
-  cameraContainer: {
-    flex: 1,
-    backgroundColor: 'black',
-  },
-  camera: {
-    flex: 1,
-  },
-  cameraControls: {
-    flex: 1,
-    backgroundColor: 'transparent',
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'flex-end',
-    paddingBottom: 40,
-  },
-  cameraButton: {
-    padding: 15,
-    borderRadius: 50,
-    backgroundColor: '#2f95dc',
-    minWidth: 100,
-    alignItems: 'center',
-  },
-  cameraButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
-  recordButton: {
-    backgroundColor: '#e74c3c',
-  },
-  stopButton: {
-    backgroundColor: '#2f95dc',
-  },
-});

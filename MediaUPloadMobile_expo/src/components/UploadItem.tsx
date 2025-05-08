@@ -1,5 +1,5 @@
 import React, { useState, useRef, useImperativeHandle, forwardRef } from 'react';
-import { View, Text, Button, Image } from 'react-native';
+import { View, Text, Button, Image, TouchableOpacity } from 'react-native';
 
 const CHUNK_SIZE = 1024 * 1024; // 1MB
 
@@ -136,16 +136,35 @@ const UploadItem = forwardRef(function UploadItem(
       <View style={{ flexDirection: 'row', marginTop: 8, justifyContent: 'flex-end' }}>
         {status === 'uploading' ? (
           <>
-            <Button title="Pause" onPress={pauseUpload} />
-            <View style={{ width: 8 }} />
-            <Button title="Cancel" onPress={cancelUpload} />
+            <TouchableOpacity
+              style={{ backgroundColor: '#8e44ad', borderRadius: 24, paddingVertical: 6, paddingHorizontal: 18, marginRight: 8 }}
+              onPress={pauseUpload}
+            >
+              <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 14 }}>Pause</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{ backgroundColor: '#FC0101', borderRadius: 24, paddingVertical: 6, paddingHorizontal: 18 }}
+              onPress={cancelUpload}
+            >
+              <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 14 }}>Cancel</Text>
+            </TouchableOpacity>
           </>
         ) : null}
         {status === 'paused' ? (
-          <Button title="Resume" onPress={resumeUpload} />
+          <TouchableOpacity
+            style={{ backgroundColor: '#8e44ad', borderRadius: 24, paddingVertical: 6, paddingHorizontal: 18 }}
+            onPress={resumeUpload}
+          >
+            <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 14 }}>Resume</Text>
+          </TouchableOpacity>
         ) : null}
         {status === 'error' ? (
-          <Button title="Retry" onPress={startUpload} />
+          <TouchableOpacity
+            style={{ backgroundColor: '#8e44ad', borderRadius: 24, paddingVertical: 6, paddingHorizontal: 18 }}
+            onPress={startUpload}
+          >
+            <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 14 }}>Retry</Text>
+          </TouchableOpacity>
         ) : null}
         {status === 'completed' ? (
           <Text style={{ color: 'green', marginLeft: 8 }}>Done</Text>

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, StyleSheet, Dimensions } from 'react-native';
 import UploadItem from './UploadItem';
 import FilePicker from './FilePicker';
 
@@ -80,16 +80,53 @@ export default function UploadManager({
   }, [files, uploadStates]);
 
   return (
-    <View style={{ width: 340, flex: 1, flexDirection: 'column' }}>
-      {/* Button section - separate wrapper */}
-      <View style={{ zIndex: 2 }}>
+    <View style={{ width: '100%', flex: 1, flexDirection: 'column', position: 'relative', alignItems: 'center' }}>
+      {/* Scrollable file list */}
+      <View style={{ flex: 1, paddingBottom: 80, width: '100%', alignItems: 'center' }}>
+        {picking && (
+          <View style={{ alignItems: 'center', marginVertical: 16 }}>
+            <ActivityIndicator size="large" color="#2f95dc" />
+            <Text>Loading files...</Text>
+          </View>
+        )}
+        {files.length > 0 && (
+          <ScrollView
+            style={{ flex: 1, width: '100%' }}
+            contentContainerStyle={{ paddingBottom: 32, alignItems: 'center' }}
+            keyboardShouldPersistTaps="handled"
+          >
+            {files.map(file => (
+              <View key={file.uri} style={{ width: 340, alignSelf: 'center' }}>
+                <UploadItem
+                  file={file} onStateChange={(state: any) => handleStateChange(file.uri, state)}
+                  ref={(ref: any) => {
+                    if (ref) uploadRefs.current[file.uri] = ref;
+                  }}
+                />
+              </View>
+            ))}
+          </ScrollView>
+        )}
+        {files.length === 0 && !picking && (
+          <Text style={{ color: '#888', textAlign: 'center', marginTop: 16 }}>
+            No files to upload.
+          </Text>
+        )}
+      </View>
+      {/* Fixed START UPLOAD button at the bottom */}
+      <View style={[styles.fixedButtonContainer, { width: '100%', alignItems: 'center' }]}>
         <TouchableOpacity
           style={{
-            backgroundColor: isDisabled ? '#b0b0b0' : '#2f95dc',
-            borderRadius: 6,
-            // paddingVertical: 12,
+            backgroundColor: isDisabled ? '#b0b0b0' : '#b39ddb',
+            borderRadius: 24,
             alignItems: 'center',
-            marginBottom: 16,
+            width: 340,
+            alignSelf: 'center',
+            paddingVertical: 14,
+            shadowColor: '#000',
+            shadowOpacity: 0.08,
+            shadowRadius: 4,
+            elevation: 2,
           }}
           onPress={handleStartAll}
           disabled={isDisabled}
@@ -99,46 +136,40 @@ export default function UploadManager({
               color: '#fff',
               fontWeight: 'bold',
               letterSpacing: 1,
+              fontSize: 16,
             }}
           >
             START UPLOAD
           </Text>
         </TouchableOpacity>
-
-        {files.length === 0 && (
-          <Text style={{ color: '#888', textAlign: 'center', marginTop: 16 }}>
-            No files to upload.
-          </Text>
-        )}
-      </View>
-
-      {/* ScrollView section - completely separate from button section */}
-      <View style={{ flex: 1 }}>
-        {picking && (
-          <View style={{ alignItems: 'center', marginVertical: 16 }}>
-            <ActivityIndicator size="large" color="#2f95dc" />
-            <Text>Loading files...</Text>
-          </View>
-        )}
-        {files.length > 0 && (
-          <ScrollView
-            style={{ flex: 1 }}
-            contentContainerStyle={{ paddingBottom: 24 }}
-            keyboardShouldPersistTaps="handled"
-          >
-            {files.map(file => (
-              <UploadItem
-                key={file.uri}
-                file={file} onStateChange={(state: any) => handleStateChange(file.uri, state)}
-                ref={(ref: any) => {
-                  if (ref) uploadRefs.current[file.uri] = ref;
-                }}
-              />
-            ))}
-          </ScrollView>
-        )}
       </View>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  fixedButtonContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: 0,
+    paddingBottom: 8,
+    backgroundColor: 'transparent',
+    width: '100%',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  overlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255,255,255,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 100,
+  },
+});
 
