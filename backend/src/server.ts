@@ -471,7 +471,7 @@ app.get('/api/monitoring/stats', async (req, res) => {
     const averageSpeed = completedUploads.length > 0
       ? completedUploads.reduce((sum, u) => sum + (u.uploadSpeed || 0), 0) / completedUploads.length
       : 0;
-      console.log('Average speed:', averageSpeed);
+      
 
     const stats = {
       totalUploads: uploads.length,

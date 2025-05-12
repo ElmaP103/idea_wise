@@ -1,11 +1,19 @@
 import React, { useState } from 'react';
 import { Container, Box, Typography, Snackbar, Alert } from '@mui/material';
-import { ResumableUpload } from './components/ResumableUpload';
+import { UploadManager } from './components/UploadManager';
 import MonitoringDashboard from './components/MonitoringDashboard';
 import { logger } from './utils/logger';
 
+type ErrorCategory = 'NETWORK' | 'VALIDATION' | 'SERVER' | 'PERMISSION' | 'UNKNOWN';
+
+interface UploadError {
+  message: string;
+  category: ErrorCategory;
+  details?: string;
+}
+
 function App() {
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<UploadError | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
   const handleUploadComplete = (uploadIds: string[]) => {
@@ -19,7 +27,7 @@ function App() {
     });
   };
 
-  const handleUploadError = (error: string) => {
+  const handleUploadError = (error: UploadError) => {
     setError(error);
   };
 
@@ -36,7 +44,7 @@ function App() {
         </Typography>
 
         <Box sx={{ mb: 4 }}>
-          <ResumableUpload
+          <UploadManager
             onUploadComplete={handleUploadComplete}
             onError={handleUploadError}
           />
@@ -52,7 +60,13 @@ function App() {
           onClose={handleCloseSnackbar}
         >
           <Alert severity="error" onClose={handleCloseSnackbar}>
-            <span>{error || ''}</span>
+            <Typography variant="subtitle2">{error?.category}</Typography>
+            <Typography>{error?.message}</Typography>
+            {error?.details && (
+              <Typography variant="caption" display="block">
+                {error.details}
+              </Typography>
+            )}
           </Alert>
         </Snackbar>
 
@@ -62,7 +76,7 @@ function App() {
           onClose={handleCloseSnackbar}
         >
           <Alert severity="success" onClose={handleCloseSnackbar}>
-            <span>{success || ''}</span>
+            <Typography>{success}</Typography>
           </Alert>
         </Snackbar>
       </Box>
